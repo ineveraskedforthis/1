@@ -1,0 +1,6 @@
+money system
+
+rewrite ai to states
+
+market.get_most_profitable_building
+agent.build()
