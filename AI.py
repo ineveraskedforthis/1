@@ -2,40 +2,67 @@ from statetemplates import *
 from CONSTANTS import *
 
 
-def BasicPopAI(agent):
-    print('POP_AI_____________________________________')
-    currency = agent.currency
-    tmp = int(max(agent.size * 1 * agent.needs['food'] - agent.stash.get('food'), 0))
-    agent.clear_orders('food', currency)
-    print(agent.name)
-    print(agent.name, 'buy', 'food', tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost('food', tmp), 'savings', agent.savings.get(currency))
-    print('spend', (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 1.2)
-    agent.buy('food', tmp, min(agent.savings.get(currency), (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 2) + 10, currency)
+class HomelessAI(State):
+    def Execute(self):
+        tmp = 0
+        tmp_pop = agent
+        for i in agent.cell.get_enterprises():
+            tmp2 = i.pop.get_salary()
+            if tmp2 > tmp and not i.pop.is_full():
+                tmp = tmp2
+                tmp_pop = i.pop
+        army_pop = cell.get_local_army()
+        tmp2 = army_pop.get_salary()
+        if tmp2 > tmp and not army_pop.is_full():
+            tmp = army_pop
+            tmp_pop = i.pop
+        if tmp_pop != agent:
+            agent.transfer_size(tmp_pop, 1)
 
-    for i in TAGS:
-        if i != 'food':
-            tmp = int(max(agent.size * 1 * agent.needs[i] - agent.stash.get(i), 0))
-            agent.clear_orders(i, currency)
-            if tmp > 0:
-                # print(agent.name, 'buy', i, tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost(i, tmp), 'savings', agent.savings.get(currency))
-                agent.buy(i, tmp, min(agent.savings.get(currency), max(agent.get_local_market(currency).guess_tag_cost(i, tmp), agent.savings.get(currency) * 0.1)), currency)
+class BasicPopAI(State):
+    def Execute(agent):
+        if POP_LOGGING:
+            print('POP_AI_____________________________________')
+        cell = agent.cell
+        currency = agent.currency
+        tmp = int(max(agent.size * 1 * agent.needs['food'] - agent.stash.get('food'), 0))
+        agent.clear_orders('food', currency)
+        if POP_LOGGING:
+            print(agent.name)
+        if POP_LOGGING:
+            print(agent.name, 'buy', 'food', tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost('food', tmp), 'savings', agent.savings.get(currency))
+        if POP_LOGGING:
+            print('spend', (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 1.2)
+        agent.buy('food', tmp, min(agent.savings.get(currency), (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 2) + 10, currency)
+
+        for i in TAGS:
+            if i != 'food':
+                tmp = int(max(agent.size * 1 * agent.needs[i] - agent.stash.get(i), 0))
+                agent.clear_orders(i, currency)
+                if tmp > 0:
+                    # print(agent.name, 'buy', i, tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost(i, tmp), 'savings', agent.savings.get(currency))
+                    agent.buy(i, tmp, min(agent.savings.get(currency), max(agent.get_local_market(currency).guess_tag_cost(i, tmp), agent.savings.get(currency) * 0.1)), currency)
 
 
-    tmp = agent.get_estimated_savings_per_capita()
-    tmp_pop = agent
-    # for i in agent.cell.get_enterprises():
-    #     tmp2 = i.pop.get_estimated_savings_per_capita()
-    #     if tmp2 > tmp and not i.pop.is_full():
-    #         tmp = tmp2
-    #         tmp_pop = i.pop
-    # tmp = 0
-    # for i in agent.cell.get_enterprises():
-    #     tmp2 = i.calculate_potent_profit_per_worker()
-    #     if tmp2 > tmp and not i.pop.is_full:
-    #         tmp = tmp2
-    #         tmp_pop = i.pop
-    if tmp_pop != agent:
-        agent.transfer_size(tmp_pop, 1)
+        # tmp = agent.get_salary()
+        # tmp_pop = agent
+        # for i in agent.cell.get_enterprises():
+        #     tmp2 = i.pop.get_salary()
+        #     if tmp2 > tmp and not i.pop.is_full():
+        #         tmp = tmp2
+        #         tmp_pop = i.pop
+        # army_pop = cell.get_local_army()
+        # tmp2 = army_pop.get_salary()
+        # if tmp2 > tmp and not army_pop.is_full():
+        #     tmp = army_pop
+        #     tmp_pop = i.pop
+        # for i in agent.cell.get_enterprises():
+        #     tmp2 = i.calculate_potent_profit_per_worker()
+        #     if tmp2 > tmp and not i.pop.is_full:
+        #         tmp = tmp2
+        #         tmp_pop = i.pop
+        # if tmp_pop != agent:
+        #     agent.transfer_size(tmp_pop, 1)
 
 
 # def BasicEnterpriseAI(agent):
@@ -100,7 +127,7 @@ def BasicPopAI(agent):
 
 class AI_Enterprise(State):
     def Execute(agent):
-        flag = True
+        flag = False
         if flag:
             print('_______AI_LOGGING', agent.name, '_________')
         currency = agent.currency
@@ -222,3 +249,30 @@ class AI_AgentBuildBuilding(State):
             agent.build()
         else:
             agent.AI.change_state(AI_AgentSaveMoney)
+
+
+class ArmyIdleAI(State):
+    def Execute(agent):
+        pass
+
+class LeaderIdle(State):
+    def Execute(agent):
+        off = agent.offices
+        town = off[0].org
+        if town.offices['soldiers'].size < 100:
+            agent.AI['leader'].change_state(LeaderGatherArmy)
+
+class LeaderGatherArmy(State):
+    def Execute(agent):
+        off = agent.offices
+        town = off[0].org
+        town.offices['soldiers'].set_max_size(200)
+        # if town.savings.get(agent.currency) > 1000 and town.offices['soldiers'].savings.get(agent.currency) < 1000:
+        #     town.pay('soldiers', 1000)
+        # if town.offices['soldiers'].size <= 100:
+        #     town.change_salary('soldiers', 1)
+
+
+class CaptainIdle(State):
+    def Execute(agent):
+        pass

@@ -1,10 +1,12 @@
 #needs
 TAGS = ['food', 'wheat', 'wool', 'regular_cloth', 'services', 'wood', 'stone']
 BASIC_NEEDS = dict()
+BASIC_ARMY_NEEDS = dict()
 FARM_NEEDS = dict()
 BAKERY_NEEDS = dict()
 for i in TAGS:
     BASIC_NEEDS[i] = 0
+    BASIC_ARMY_NEEDS[i] = 0
     FARM_NEEDS[i] = 0
     BAKERY_NEEDS[i] = 0
 BASIC_NEEDS['food'] = 1
@@ -52,5 +54,6 @@ WEAVERSHOP['needs'] = []
 
 buildings = [FARM, BAKERY, PASTURES, WEAVERSHOP]
 
-LOGGING = True
+LOGGING = False
+POP_LOGGING = False
 INF = 99999999999999

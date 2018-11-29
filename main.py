@@ -59,6 +59,14 @@ class World():
             i.print_enterprises()
         # self.print_pops()
 
+    def get_pops_list(self):
+        tmp = [['name', 'size', 'savings']]
+        for i in self.agents:
+            if i.is_pop:
+                tmp.append(i.get_list())
+        return tmp
+
+
 
 class Map():
     def __init__(self, world):
@@ -133,7 +141,7 @@ class Cell():
     def set_owner(self, x):
         self.owner = x
 
-    def get_pops(self):
+    def get_pops_list(self):
         tmp = [['name', 'size', 'savings']]
         tmp.append(self.pop.get_list())
         for i in self.tiles:
@@ -141,6 +149,12 @@ class Cell():
             for j in i.enterprises:
                 tmp.append(j.pop.get_list())
         return tmp
+
+    def get_local_army(self):
+        if self.owner != None:
+            return self.owner.offices['soldiers']
+        else:
+            return None
 
 
 class Tile():
@@ -670,7 +684,11 @@ class Savings():
 
 class Agent():
     def __init__(self, world, name = 'agent', cell = None, starting_money = 0, currency = 'money1'):
-        self.x, self.y = cell.i, cell.j
+        if cell != None:
+            self.x, self.y = cell.i, cell.j
+        else:
+            self.x = None
+            self.y = None
         self.world = world
         world.agents.append(self)
         self.stash = Stash()
@@ -679,10 +697,12 @@ class Agent():
         self.name = name
         self.currency = currency
         self.savings.inc(starting_money, currency)
+        self.is_pop = False
 
     def update(self):
         # print('update', self.name)
         self.savings.update()
+        self.prev_true_savings = self.get_true_savings()
 
     def buy(self, tag, amount, money, money_type):
         print(self.name, 'try_to_buy', tag, 'amount', amount, 'money', money)
@@ -692,9 +712,12 @@ class Agent():
         self.get_local_market(money_type).sell(tag, self, amount, price)
 
     def clear_orders(self, tag, currency):
-        self.get_local_market(currency).clear_agent_orders(self, tag)
+        if self.get_local_market(currency) != None:
+            self.get_local_market(currency).clear_agent_orders(self, tag)
 
     def get_local_market(self, money):
+        if self.cell == None:
+            return None
         for i in self.cell.markets:
             if i.money_type == money:
                 return i
@@ -707,7 +730,9 @@ class Agent():
         return self.savings.get_estimated_income()
 
     def get_money_on_market(self):
-        return self.get_local_market(self.currency).get_money_on_hold(self)
+        if self.cell != None and self.get_local_market(self.currency) != None:
+            return self.get_local_market(self.currency).get_money_on_hold(self)
+        return 0
 
     def get_name(self):
         return self.name
@@ -750,8 +775,10 @@ class Pop(Consumer):
     def __init__(self, world, needs, size, parent = None, AI = BasicPopAI, name = 'pop', cell = None, max_size = None, starting_money = 0, currency = 'money1'):
         Consumer.__init__(self, world, needs, size, name = name, cell = cell, starting_money = starting_money, currency = currency)
         self.parent = parent
-        self.AI = AI
+        self.AI = StateMachine(self, AI)
         self.growth_mod = 0
+        self.is_pop = True
+        self.max_size = max_size
 
     def update(self):
         if self.size == 0:
@@ -760,7 +787,15 @@ class Pop(Consumer):
         if TICK == 0:
             self.growth_update()
             self.growth_mod = 0
-        self.AI(self)
+        self.AI.update()
+
+    def set_max_size(self, x):
+        self.max_size = x
+        if self.max_size <= self.size:
+            if self.parent == None:
+                self.size = self.max_size
+            else:
+                self.demote(self.size - self.max_size)
 
     def consume(self, tag):
         if self.size == 0:
@@ -791,7 +826,7 @@ class Pop(Consumer):
     def get_estimated_savings_per_capita(self):
         tmp = 0
         for i in MONEY:
-            tmp += self.savings.get(i) * MONEY_PRECIOUS_METAL_RATIO[i]
+            tmp += (self.get_true_savings()) * MONEY_PRECIOUS_METAL_RATIO[i]
         if self.size == 0:
             return INF
         return tmp / self.size
@@ -800,7 +835,7 @@ class Pop(Consumer):
         x = min(x, self.size)
         self.size -= x
         target.size += x
-        # print('transfer ', x, ' from ', self.name, ' to ', target.name)
+        print('transfer ', x, ' from ', self.name, ' to ', target.name)
 
     def demote(self, x):
         self.transfer_size(self.parent, x)
@@ -827,10 +862,16 @@ class Pop(Consumer):
     def get_list(self):
         return([self.name, self.size, self.get_true_savings()])
 
+    def get_salary(self):
+        return (self.get_true_savings() - self.prev_true_savings) / self.size
+
 
 class HomelessHumanBeing(Pop):
     def __init__(self, world, size, parent = None, name = 'peasants', cell = None):
         Pop.__init__(self, world, BASIC_NEEDS, size, parent, name = name, cell = cell)
+
+    def get_salary(self):
+        return 0
 
 
 class NormalHumanBeing(Pop):
@@ -862,10 +903,11 @@ class Enterprise(Consumer):
         self.attr = attributes
         if owner == None:
             self.owner = pop
+        self.pop.enterprise = self
         self.AI = StateMachine(self, ai_state)
         self.active_workers = self.pop.size
         self.price = dict()
-        self.salary = 1
+        self.salary = 10
         self.density =  attributes['density']
         self.savings.inc(starting_money, currency)
         self.salary_coeff = 0
@@ -900,7 +942,7 @@ class Enterprise(Consumer):
         for i in self.input:
             if i[1] != 0:
                 production_amount = min(production_amount, self.stash.get(i[0]) / (i[1] * self.get_input_eff()))
-        print(self.name, 'production_amount', production_amount)
+        # print(self.name, 'production_amount', production_amount)
         if len(self.input) > 0 :
             print(self.input[0][0], self.stash.get(self.input[0][0]))
         for i in self.input:
@@ -1024,6 +1066,10 @@ class WeaverShop(Enterprise):
                             starting_money = starting_money,
                             currency = currency)
 
+class Office():
+    def __init__(self, org, tag):
+        self.org = org
+        self.tag = tag
 
 class Human(Consumer):
     def __init__(self, world, owner = None, name = None, cell = None, tile = None, gender = None, age_tick = 0):
@@ -1033,6 +1079,9 @@ class Human(Consumer):
         self.age_tick = age_tick
         self.chosen_building = None
         self.offices = []
+        self.AI = dict()
+        self.AI['leader'] = StateMachine(self, LeaderIdle)
+        self.AI['captain'] = StateMachine(self, CaptainIdle)
     def update(self):
         self.age_tick += 1
         Consumer.update(self)
@@ -1055,17 +1104,36 @@ class Human(Consumer):
     def add_office(self, office):
         self.offices.append(office)
 
+class MilitarySquad(Pop):
+    def __init__(self, world, size, parent = None, AI = BasicPopAI, name = 'army', cell = None, max_size = None, starting_money = 0, currency = 'money1', town = None):
+        Pop.__init__(self, world, BASIC_NEEDS, size, AI = AI, parent = parent, name = name, cell = cell, max_size = max_size, starting_money = starting_money, currency = currency)
+        self.ArmyAI = StateMachine(self, ArmyIdleAI)
+        self.town = town
+
+    def update(self):
+        Pop.update(self)
+        self.ArmyAI.update()
+
+    def get_salary(self):
+        return self.town.salary['soldiers']
 
 class Town(Agent):
     def __init__(self, world, cell, name = 'Town', starting_money = 0, currency = 'money1'):
         Agent.__init__(self, world, name = 'agent', cell = cell, starting_money = starting_money, currency = currency)
+        self.cell = cell
         self.cells = []
         self.taxes = dict()
         for i in TAGS:
             self.taxes[i] = 0
-        self.offices_tag = ['leader']
+        self.offices_tag = ['leader', 'captain', 'soldiers']
         self.offices = dict()
+        self.salary = dict()
+        for i in self.offices_tag:
+            self.offices[i] = None
+            self.salary[i] = 0
         self.markets = set()
+        self.offices['soldiers'] = MilitarySquad(self.world, size = 50, max_size = 100, currency = currency, town = self, cell = cell)
+        self.salary['soldiers'] = 50
 
     def add_cell(self, cell):
         self.cells.append(cell)
@@ -1073,21 +1141,39 @@ class Town(Agent):
         cell.get_market(self.currency).set_owner(self)
         self.markets.add(cell.get_market(self.currency))
 
+
     def update(self):
-        pass
+        self.pay_wages()
+        if self.offices['leader'] != None:
+            self.offices['leader'].AI['leader'].update()
+        if self.offices['captain'] != None:
+            self.offices['captain'].AI['captain'].update()
+
+
+    def pay_wages(self):
+        for tag in self.offices_tag:
+            if self.offices[tag] != None:
+                self.savings.transfer(self.offices[tag].savings, self.salary[tag] * self.offices[tag].size, self.currency)
+
+    def pay(self, tag, amount):
+        if self.offices[tag] != None:
+            self.savings.transfer(self.offices[tag].savings, amount, self.currency)
 
     def set_office(self, office, x):
         self.offices[office] = x
-        x.add_office([office, self])
+        x.add_office(Office(self, office))
 
     def set_market_tax(self, tag, x, currency):
         self.taxes[tag] = x
         for market in self.markets:
             market.set_taxes(tag, x)
 
+    def change_salary(self, tag, x):
+        self.salary[tag] += x
 
 
-world = World(10, 10)
+
+world = World(1, 1)
 print('world inited')
 x, y = 0, 0
 cell = world.get_cell(x, y)
@@ -1104,19 +1190,21 @@ cell.add_tile(SmallTown(cell))
 cell.add_tile(SmallTown(cell))
 print('tiles inited')
 
-susek = Human(world, cell = cell, name = 'peter', gender = 'male', age_tick = 9000)
+susek = Human(world, cell = cell, name = 'susek', gender = 'male', age_tick = 9000)
 peter = Human(world, cell = cell, name = 'peter', gender = 'male', age_tick = 8000)
+pidar = Human(world, cell = cell, name = 'pidar', gender = 'male', age_tick = 10000)
 peter.AI = StateMachine(peter, AI_AgentSaveMoney)
 peter.stash.inc('food', 10000)
 peter.sell('food', 10, 10, 'money1')
 peter.savings.inc(1000, 'money1')
 
+
 Hehusgrad = Town(world, cell = cell, name = 'Hehusgrad', starting_money = 10000)
 Hehusgrad.add_cell(cell)
 Hehusgrad.set_office('leader', susek)
+Hehusgrad.set_office('captain', pidar)
 Hehusgrad.set_market_tax('food', 1, 'money1')
-
-# world.print_pops()
+Hehusgrad.set_market_tax('regular_cloth', 10, 'money1')
 
 pygame.init()
 pygame.display.set_caption('gsg')
@@ -1201,7 +1289,7 @@ PopulationLable = UpdatingLabel(30, 30, lambda x = x: 'population: ' + str(cell.
 HehusgradMoneyLable = UpdatingLabel(30, 60, lambda x = x: 'Hehusgrad savings ' + str(Hehusgrad.get_savings('money1')))
 MarketGrid = UpdatingGrid(500, 0, m1.get_table, spacing = [0, 40, 120, 260, 340, 440, 300])
 EnterpriseGrid = UpdatingGrid(0, 500, cell.get_enterprises_list, spacing = [0, 100, 140, 190, 240, 280, 300])
-PopulationGrid = UpdatingGrid(400, 500, cell.get_pops, spacing = [0, 150, 200, 250, 240, 280, 300])
+PopulationGrid = UpdatingGrid(400, 500, world.get_pops_list, spacing = [0, 150, 200, 250, 240, 280, 300])
 
 while 1 == 1:
     PopulationLable.draw()
@@ -1225,7 +1313,7 @@ while 1 == 1:
     print('wool', SERVICES_PRICE[-1])
     CLOTH_PRICE = SERVICES_PRICE[1:] + [m1.get_average_tag_price('regular_cloth')]
     print('cloth', CLOTH_PRICE[-1])
-    # m1.print_profits_per_chain()
+    m1.print_profits_per_chain()
     if TICK == 0:
         POPULATION = POPULATION[1:] + [cell.get_population()]
 
