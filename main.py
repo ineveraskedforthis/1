@@ -75,7 +75,7 @@ class Map():
 
 
 class Cell():
-    def __init__(self, world, map1, i, j, name = None):
+    def __init__(self, world, map1, i, j, name = None, owner = None):
         if name == None:
             self.name = str(i) + ' ' + str(j)
         else:
@@ -88,6 +88,7 @@ class Cell():
         self.enterprises = set()
         self.pop = HomelessHumanBeing(self.world, 0, name = 'homeless_peasants ' + self.name, cell = self)
         self.tiles = []
+        self.owner = owner
 
     def update(self):
         for i in self.markets:
@@ -100,6 +101,12 @@ class Cell():
 
     def add_market(self, x):
         self.markets.add(x)
+
+    def get_market(self, currency):
+        for i in self.markets:
+            if i.money_type == currency:
+                return i
+        return None
 
     def get_enterprises(self):
         tmp = set()
@@ -123,6 +130,9 @@ class Cell():
                 tmp.append(j.get_list())
         return tmp
 
+    def set_owner(self, x):
+        self.owner = x
+
     def get_pops(self):
         tmp = [['name', 'size', 'savings']]
         tmp.append(self.pop.get_list())
@@ -134,9 +144,10 @@ class Cell():
 
 
 class Tile():
-    def __init__(self, cell, terrain = 'plains', resource = None, owner = None, development = 'vild', housing = 0, housing_price = None):
+    def __init__(self, cell, terrain = 'plains', resource = None, owner = None, development = 'vild', housing = 0, housing_price = None, name = 'Tile'):
         self.cell = cell
         self.terrain = terrain
+        self.name = name
         if terrain == 'plains':
             self.free_space = 1000
         else:
@@ -145,7 +156,7 @@ class Tile():
         self.owner = owner
         self.development = development
         self.enterprises = set()
-        self.pop = NormalHumanBeing(cell.world, 0, parent = cell.pop, cell = cell, free = True)
+        self.pop = NormalHumanBeing(cell.world, 0, parent = cell.pop, cell = cell, free = True, name = self.name + ' burgs')
         self.housing = housing
         self.free_space -= housing
         self.housing_price = housing_price
@@ -179,29 +190,26 @@ class Tile():
             self.pop.demote(tmp)
 
 class Village(Tile):
-    def __init__(self, cell, resource = None, owner = None, housing = 100, housing_price = None):
+    def __init__(self, cell, resource = None, owner = None, housing = 100, housing_price = None, name = 'village'):
         global VILLAGE_ID
-        self.name = 'village ' + str(VILLAGE_ID)
         VILLAGE_ID += 1
-        Tile.__init__(self, cell, terrain = 'plains', resource = resource, owner = owner, development = 'rural', housing = housing, housing_price = housing_price)
+        Tile.__init__(self, cell, terrain = 'plains', resource = resource, owner = owner, development = 'rural', housing = housing, housing_price = housing_price, name = 'village ' + str(VILLAGE_ID))
         farm = Farm(world, name = 'farm ' + self.name, tile = self, size = 900, cell = cell, starting_money = 100000, starting_pop_size = 100)
         self.add_enterprise(farm)
 
 class PasturesTile(Tile):
     def __init__(self, cell, resource = None, owner = None, housing = 100, housing_price = None):
         global VILLAGE_ID
-        self.name = 'village ' + str(VILLAGE_ID)
         VILLAGE_ID += 1
-        Tile.__init__(self, cell, terrain = 'plains', resource = resource, owner = owner, development = 'rural', housing = housing, housing_price = housing_price)
+        Tile.__init__(self, cell, terrain = 'plains', resource = resource, owner = owner, development = 'rural', housing = housing, housing_price = housing_price, name = 'village ' + str(VILLAGE_ID))
         pastures = Pastures(world, name = 'pastures ' + self.name, tile = self, size = 900, cell = cell, starting_money = 100000, starting_pop_size = 100)
         self.add_enterprise(pastures)
 
 class SmallTown(Tile):
     def __init__(self, cell, resource = None, owner = None, housing = 400, housing_price = None):
         global VILLAGE_ID
-        self.name = 'town ' + str(VILLAGE_ID)
         VILLAGE_ID += 1
-        Tile.__init__(self, cell, terrain = 'plains', resource = resource, owner = owner, development = 'rural', housing = housing, housing_price = housing_price)
+        Tile.__init__(self, cell, terrain = 'plains', resource = resource, owner = owner, development = 'rural', housing = housing, housing_price = housing_price, name = 'town ' + str(VILLAGE_ID))
         self.pop.size = 400
         bakery = Bakery(world, name = 'bakery ' + self.name, tile = self, size = 200, cell = cell, starting_money = 100000, starting_pop_size = 400, currency = 'money1')
         weavershop = WeaverShop(world, name = 'weavershop ' + self.name, tile = self, size = 100, cell = cell, starting_money = 100000, starting_pop_size = 200, currency = 'money1')
@@ -223,7 +231,8 @@ class MarketOrder():
 
 class Market():
     """Basic trading between cell's agents"""
-    def __init__(self, money):
+    def __init__(self, money, owner = None):
+        self.owner = owner
         self.money_type = money
         self.savings = Savings(False)
         self.stash = Stash()
@@ -240,7 +249,9 @@ class Market():
         self.total_sold_cost_new = dict()
         self.sells = dict()
         self.tmp_sells = dict()
+        self.taxes = dict()
         for tag in TAGS:
+            self.taxes[tag] = 0
             self.planned_money_to_spent[tag] = 0
             self.total_cost_of_placed_goods[tag] = 0
             self.tmp_planned_money_to_spent[tag] = 0
@@ -271,6 +282,9 @@ class Market():
             self.total_sold_cost_new[tag] = 0
             self.sells[tag] = self.tmp_sells[tag]
             self.tmp_sells[tag] = []
+
+    def set_taxes(self, tag, x):
+        self.taxes[tag] = x
 
     def buy(self, tag, buyer, amount, money):
         if buyer.savings.get(self.money_type) < money:
@@ -361,6 +375,7 @@ class Market():
         self.tmp_sells[order.tag].append([amount, order.price])
         order.amount -= amount
         self.savings.transfer(seller.savings, amount * order.price, self.money_type)
+        self.savings.transfer(self.owner.savings, amount * self.taxes[order.tag], self.money_type)
         seller.stash.transfer(order.owner.stash, order.tag, amount)
         self.total_sold_new[order.tag] += amount
         self.total_sold_cost_new[order.tag] += amount * order.price
@@ -373,6 +388,7 @@ class Market():
         order.amount -= amount
         self.stash.transfer(buyer.stash, order.tag, amount)
         buyer.savings.transfer(order.owner.savings, amount * order.price, self.money_type)
+        self.savings.transfer(self.owner.savings, amount * self.taxes[order.tag], self.money_type)
         self.total_sold_new[order.tag] += amount
         self.total_sold_cost_new[order.tag] += amount * order.price
         if LOGGING == True:
@@ -569,6 +585,9 @@ class Market():
                 tmp.append(i.get_list())
         return sorted(tmp)
 
+    def set_owner(self, x):
+        self.owner = x
+
 
 class Stash():
     def __init__(self):
@@ -693,6 +712,9 @@ class Agent():
     def get_name(self):
         return self.name
 
+    def get_savings(self, curr = 'money1'):
+        return self.savings.get(curr)
+
     def print_pops(self):
         pass
 
@@ -722,10 +744,6 @@ class Consumer(Agent):
     def update(self):
         Agent.update(self)
         self.consume_update()
-
-
-
-
 
 
 class Pop(Consumer):
@@ -1014,7 +1032,7 @@ class Human(Consumer):
         self.gender = gender
         self.age_tick = age_tick
         self.chosen_building = None
-
+        self.offices = []
     def update(self):
         self.age_tick += 1
         Consumer.update(self)
@@ -1034,15 +1052,48 @@ class Human(Consumer):
         cell.build(self.chosen_building)
         return 'ok!'
 
+    def add_office(self, office):
+        self.offices.append(office)
+
+
+class Town(Agent):
+    def __init__(self, world, cell, name = 'Town', starting_money = 0, currency = 'money1'):
+        Agent.__init__(self, world, name = 'agent', cell = cell, starting_money = starting_money, currency = currency)
+        self.cells = []
+        self.taxes = dict()
+        for i in TAGS:
+            self.taxes[i] = 0
+        self.offices_tag = ['leader']
+        self.offices = dict()
+        self.markets = set()
+
+    def add_cell(self, cell):
+        self.cells.append(cell)
+        cell.set_owner(self)
+        cell.get_market(self.currency).set_owner(self)
+        self.markets.add(cell.get_market(self.currency))
+
+    def update(self):
+        pass
+
+    def set_office(self, office, x):
+        self.offices[office] = x
+        x.add_office([office, self])
+
+    def set_market_tax(self, tag, x, currency):
+        self.taxes[tag] = x
+        for market in self.markets:
+            market.set_taxes(tag, x)
+
+
 
 world = World(10, 10)
 print('world inited')
 x, y = 0, 0
 cell = world.get_cell(x, y)
+
 m1 = Market('money1')
 cell.add_market(m1)
-
-
 
 cell.pop.change_size(200)
 cell.add_tile(Village(cell))
@@ -1053,12 +1104,17 @@ cell.add_tile(SmallTown(cell))
 cell.add_tile(SmallTown(cell))
 print('tiles inited')
 
-
+susek = Human(world, cell = cell, name = 'peter', gender = 'male', age_tick = 9000)
 peter = Human(world, cell = cell, name = 'peter', gender = 'male', age_tick = 8000)
 peter.AI = StateMachine(peter, AI_AgentSaveMoney)
 peter.stash.inc('food', 10000)
 peter.sell('food', 10, 10, 'money1')
 peter.savings.inc(1000, 'money1')
+
+Hehusgrad = Town(world, cell = cell, name = 'Hehusgrad', starting_money = 10000)
+Hehusgrad.add_cell(cell)
+Hehusgrad.set_office('leader', susek)
+Hehusgrad.set_market_tax('food', 1, 'money1')
 
 # world.print_pops()
 
@@ -1142,6 +1198,7 @@ class UpdatingGrid():
                 self.data[i][j] = UpdatingLabel(self.x + self.spacing[j], self.y + i * 18, lambda i = i, j = j: self.tmp_func(i, j), color = self.text_color)
 
 PopulationLable = UpdatingLabel(30, 30, lambda x = x: 'population: ' + str(cell.get_population()))
+HehusgradMoneyLable = UpdatingLabel(30, 60, lambda x = x: 'Hehusgrad savings ' + str(Hehusgrad.get_savings('money1')))
 MarketGrid = UpdatingGrid(500, 0, m1.get_table, spacing = [0, 40, 120, 260, 340, 440, 300])
 EnterpriseGrid = UpdatingGrid(0, 500, cell.get_enterprises_list, spacing = [0, 100, 140, 190, 240, 280, 300])
 PopulationGrid = UpdatingGrid(400, 500, cell.get_pops, spacing = [0, 150, 200, 250, 240, 280, 300])
@@ -1180,6 +1237,7 @@ while 1 == 1:
     try:
         DISPLAYSURF.fill((255, 255, 255))
         PopulationLable.draw()
+        HehusgradMoneyLable.draw()
         MarketGrid.update()
         MarketGrid.draw()
         EnterpriseGrid.update()

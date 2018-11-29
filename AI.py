@@ -10,7 +10,7 @@ def BasicPopAI(agent):
     print(agent.name)
     print(agent.name, 'buy', 'food', tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost('food', tmp), 'savings', agent.savings.get(currency))
     print('spend', (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 1.2)
-    agent.buy('food', tmp, min(agent.savings.get(currency), (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 1.2) + 10, currency)
+    agent.buy('food', tmp, min(agent.savings.get(currency), (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 2) + 10, currency)
 
     for i in TAGS:
         if i != 'food':
@@ -123,12 +123,16 @@ class AI_Enterprise(State):
                 if flag:
                     print(i, '_______')
                 dprice = dict()
+                no_profit = False
                 for j in range(len(agent.output)):
                     tag = agent.output[j][0]
                     dprice[tag] = (tmp % 3 - 1)
                     tmp = tmp // 3
                     if agent.price[tag] + dprice[tag] <= 0:
-                        continue
+                        no_profit = True
+                if no_profit:
+                    i += 1
+                    continue
                 if flag:
                     print(dprice)
                 for dworkers in [0, 1]:
@@ -146,7 +150,7 @@ class AI_Enterprise(State):
                             print(planned_price)
                         total_cost_of_produced_goods = planned_workers * agent.get_production_per_worker() * planned_price[tag]
                         total_cost_of_goods = (planned_workers * agent.get_production_per_worker() + agent.stash.get(tag)) * planned_price[tag]
-                        max_income[tag] = market.planned_money_to_spent[tag] - market.get_total_cost_of_placed_goods_with_price_less_or_equal(tag, planned_price[tag])
+                        max_income[tag] = market.planned_money_to_spent[tag] - market.get_total_cost_of_placed_goods_with_price_less_or_equal(tag, planned_price[tag] + market.taxes[tag])
                         expected_income[tag] = min(max_income[tag], total_cost_of_goods)
                         if flag:
                             print('planned_money_to_spend', market.planned_money_to_spent[tag])
@@ -185,7 +189,7 @@ class AI_Enterprise(State):
                 tag = i[0]
                 agent.price[tag] += tdprice[tag]
             for i in agent.output:
-                agent.sell(i[0], agent.stash.get(i[0]), agent.price[i[0]], currency)
+                agent.sell(i[0], agent.stash.get(i[0]), agent.price[i[0]] + market.taxes[tag], currency)
             agent.set_active_workers(agent.active_workers + tdworkers)
             for i in agent.input:
                 if flag:
