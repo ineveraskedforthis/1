@@ -3,21 +3,17 @@ from CONSTANTS import *
 
 
 class HomelessAI(State):
-    def Execute(self):
+    def Execute(agent):
+        # print('______POP_AI_JOBLESS_____')
         tmp = 0
-        tmp_pop = agent
         for i in agent.cell.get_enterprises():
-            tmp2 = i.pop.get_salary()
-            if tmp2 > tmp and not i.pop.is_full():
-                tmp = tmp2
-                tmp_pop = i.pop
-        army_pop = cell.get_local_army()
-        tmp2 = army_pop.get_salary()
-        if tmp2 > tmp and not army_pop.is_full():
-            tmp = army_pop
-            tmp_pop = i.pop
-        if tmp_pop != agent:
-            agent.transfer_size(tmp_pop, 1)
+            # print(i.pop.name, i.pop.size, i.pop.max_size)
+            if not i.pop.is_full():
+                agent.transfer_size(i.pop, 1)
+        army_pop = agent.cell.get_local_army()
+        if not army_pop.is_full():
+            agent.transfer_size(army_pop, 1)
+
 
 class BasicPopAI(State):
     def Execute(agent):
@@ -209,8 +205,9 @@ class AI_Enterprise(State):
                         tdworkers = dworkers
                         tmp_pure_income = planned_pure_income
                         t_planned_spendings = planned_spendings
-                        print('update_answer_with', 'x =', t_x, 'dprice =', dprice, 'dworkers =', dworkers)
-                        print('planned_income', planned_income, 'planned_spendings', planned_spendings)
+                        if flag:
+                            print('update_answer_with', 'x =', t_x, 'dprice =', dprice, 'dworkers =', dworkers)
+                            print('planned_income', planned_income, 'planned_spendings', planned_spendings)
                 i += 1
             for i in agent.output:
                 tag = i[0]
@@ -223,32 +220,46 @@ class AI_Enterprise(State):
                     print(tmp)
                     print(i, t_x)
                 agent.buy(i[0], i[1] * t_x, market.guess_tag_cost(i[0], i[1] * t_x) * 2, currency)
-        agent.savings.transfer(agent.pop.savings, min(agent.salary * agent.active_workers, agent.savings.get(currency) - t_planned_spendings), currency)
+        agent.savings.transfer(agent.pop.savings, min(agent.salary * agent.active_workers + 1, agent.savings.get(currency) - t_planned_spendings), currency)
         # if agent.owner != None:
         agent.savings.transfer(agent.owner.savings, int(agent.savings.get(currency) * 0.01), currency)
 
-        print('_________________________________')
+        if flag:
+            print('_________________________________')
 
 
 # basic ai for agents who build buildings and make profit from them
 
-class AI_AgentSaveMoney(State):
+class AgentSaveMoney(State):
     def Execute(agent):
+        print('_________AGENTAI__________')
         currency = agent.currency
         market = agent.get_local_market(currency)
-        most_profitable_building = market.get_most_profitable_building()
-        if agent.savings.get(currency) > most_profitable_building['cost'] * 1.5:
+        most_profitable_building, chosen_tile = market.get_most_profitable_building()
+        print(most_profitable_building, chosen_tile)
+        if agent.savings.get(currency) > most_profitable_building['cost'] * 1.5 + chosen_tile.price + 100000:
             agent.chosen_building = most_profitable_building
-            agent.AI.change_state(AI_AgentBuildBuilding)
+            agent.chosen_tile = chosen_tile
+            agent.AI['capitalist'].change_state(AgentBuyClay)
+        print(most_profitable_building, chosen_tile)
 
-class AI_AgentBuildBuilding(State):
+class AgentBuyClay(State):
+    def Execute(agent):
+        currency = agent.currency
+        if agent.savings.get(currency) > agent.chosen_tile.price:
+            agent.buy_tile(agent.chosen_tile)
+            agent.AI['capitalist'].change_state(AgentBuildBuilding)
+        else:
+            agent.AI['capitalist'].change_state(AgentSaveMoney)
+
+class AgentBuildBuilding(State):
     def Execute(agent):
         currency = agent.currency
         market = agent.get_local_market(currency)
-        if agent.chosen_building['cost'] < agent.savings.get(currency):
-            agent.build()
+        if agent.chosen_building['cost'] + 100000 < agent.savings.get(currency):
+            agent.build(starting_savings = 100000)
         else:
-            agent.AI.change_state(AI_AgentSaveMoney)
+            agent.AI['capitalist'].change_state(AgentSaveMoney)
 
 
 class ArmyIdleAI(State):
