@@ -1,3 +1,6 @@
+import math
+import random
+
 #needs
 TAGS = ['food', 'wheat', 'wool', 'regular_cloth', 'services', 'wood', 'stone']
 BASIC_NEEDS = dict()
@@ -36,7 +39,7 @@ PASTURES['building_cost'] = [['wood', 100]]
 PASTURES['density'] = 0.1
 PASTURES['throughput'] = 2
 PASTURES['needs'] = []
-PASTURES['requirements'] = []
+PASTURES['requirements'] = ['grass']
 PASTURES['size'] = 100
 
 BAKERY = dict()
@@ -45,7 +48,7 @@ BAKERY['input'] = [['wheat', 1]]
 BAKERY['output'] = [['food', 1]]
 BAKERY['building_cost'] = [['wood', 100]]
 BAKERY['density'] = 0.8
-BAKERY['throughput'] = 10
+BAKERY['throughput'] = 20
 BAKERY['needs'] = []
 BAKERY['requirements'] = []
 
@@ -65,7 +68,7 @@ WOODCUTTER['input'] = []
 WOODCUTTER['output'] = [['wood', 1]]
 WOODCUTTER['building_cost'] = [['wood', 100]]
 WOODCUTTER['density'] = 0.1
-WOODCUTTER['throughput'] = 2
+WOODCUTTER['throughput'] = 1
 WOODCUTTER['needs'] = []
 WOODCUTTER['requirements'] = ['forest']
 
@@ -81,8 +84,20 @@ for i in buildings:
     buildings[i]['size'] = 100
 
 
+
+
+COLOR = dict()
+
+
+for tag in TAGS:
+    COLOR[tag] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+
+
+
+
+
 TILE_SIZE = 500
 
 LOGGING = False
 POP_LOGGING = False
-INF = 99999999999999
+INF = math.inf

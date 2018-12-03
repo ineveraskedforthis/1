@@ -23,21 +23,14 @@ class BasicPopAI(State):
         currency = agent.currency
         tmp = int(max(agent.size * 1 * agent.needs['food'] - agent.stash.get('food'), 0))
         agent.clear_orders('food', currency)
-        if POP_LOGGING:
-            print(agent.name)
-        if POP_LOGGING:
-            print(agent.name, 'buy', 'food', tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost('food', tmp), 'savings', agent.savings.get(currency))
-        if POP_LOGGING:
-            print('spend', (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 1.2)
-        agent.buy('food', tmp, min(agent.savings.get(currency), (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 2) + 10, currency)
-
+        agent.buy('food', tmp, min(agent.savings.get(currency), (agent.get_local_market(currency).guess_tag_cost('food', tmp) + 2) * 3) + 10, currency)
         for i in TAGS:
             if i != 'food':
                 tmp = int(max(agent.size * 1 * agent.needs[i] - agent.stash.get(i), 0))
                 agent.clear_orders(i, currency)
                 if tmp > 0:
                     # print(agent.name, 'buy', i, tmp, 'guess_cost', agent.get_local_market(currency).guess_tag_cost(i, tmp), 'savings', agent.savings.get(currency))
-                    agent.buy(i, tmp, min(agent.savings.get(currency), max(agent.get_local_market(currency).guess_tag_cost(i, tmp), agent.savings.get(currency) * 0.1)), currency)
+                    agent.buy(i, tmp, min(agent.savings.get(currency), max(agent.get_local_market(currency).guess_tag_cost(i, tmp), int(agent.savings.get(currency) * 0.1))), currency)
 
 
         # tmp = agent.get_salary()
@@ -287,3 +280,9 @@ class LeaderGatherArmy(State):
 class CaptainIdle(State):
     def Execute(agent):
         pass
+
+
+
+class TileIdle(State):
+    def Execute(agent):
+        agent.savings.transfer(agent.owner.savings, agent.savings.get(agent.currency))
