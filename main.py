@@ -494,7 +494,7 @@ class Market():
     def print_orders(self):
         for tag in TAGS:
             for i in self.buy_orders[tag]:
-                if i[-1] != 0:
+                if i.amount != 0:
                     print(i.get_list())
             for i in self.sell_orders[tag]:
                 print(i.get_list())
@@ -1458,7 +1458,7 @@ HehusgradMoneyLable = UpdatingLabel(30, 60, lambda x = x: 'Hehusgrad savings ' +
 MarketGrid = UpdatingGrid(500, 0, m1.get_table, spacing = [0, 40, 120, 260, 340, 440, 300])
 EnterpriseGrid = UpdatingGrid(0, 500, cell.get_enterprises_list, spacing = [0, 100, 140, 190, 240, 280, 300])
 PopulationGrid = UpdatingGrid(900, 0, world.get_pops_list, spacing = [0, 150, 200, 250, 240, 280, 300])
-# peterLabel = UpdatingLabel(30, 90, lambda x = x: 'peter savings ' + str(peter.get_true_savings()))
+peterLabel = UpdatingLabel(30, 90, lambda x = x: 'peter savings ' + str(peter.get_true_savings()))
 moneyLabel = UpdatingLabel(30, 120, lambda x = x: str(world.get_total_money()))
 market_savings = UpdatingLabel(30, 150, lambda x = x: str(m1.savings.get('money1')))
 
@@ -1466,16 +1466,17 @@ while 1 == 1:
     PopulationLable.draw()
     world.update()
 
-    # world.print_all()
-    # for i in cell.markets:
-    # #     i.print_orders()
-    #     for j in TAGS:
-    #         print(j)
-    #         print('total_sold', i.total_sold[j][-1])
-    #         print('total_sold_cost', i.total_sold_cost[j][-1])
-    # print('_____________')
+    world.print_all()
+    for i in cell.markets:
+        i.print_orders()
+        for j in TAGS:
+            print(j)
+            print('total_sold', i.total_sold[j][-1])
+            print('total_sold_cost', i.total_sold_cost[j][-1])
+    print('_____________')
     for tag in TAGS:
-        PRICES[tag] = PRICES[tag][1:] + [max(m1.get_average_tag_price(tag), 499)]
+        PRICES[tag] = PRICES[tag][1:] + [min(m1.get_average_tag_price(tag), 499)]
+        print(tag, m1.get_average_tag_price(tag))
     # FOOD_PRICE = FOOD_PRICE[1:] + [m1.get_average_tag_price('food')]
     # # print('food', FOOD_PRICE[-1])
     # WHEAT_PRICE = WHEAT_PRICE[1:] + [m1.get_average_tag_price('wheat')]
@@ -1486,8 +1487,6 @@ while 1 == 1:
     # # print('wool', SERVICES_PRICE[-1])
     # CLOTH_PRICE = SERVICES_PRICE[1:] + [m1.get_average_tag_price('regular_cloth')]
     # # print('cloth', CLOTH_PRICE[-1])
-    for i in TAGS:
-        print('{0:s} {1:f}'.format(i, PRICES[i][-1]))
     m1.print_profits_per_chain()
     if TICK == 0:
         POPULATION = POPULATION[1:] + [cell.get_population()]
@@ -1507,7 +1506,7 @@ while 1 == 1:
         EnterpriseGrid.draw()
         PopulationGrid.update()
         PopulationGrid.draw()
-        # peterLabel.draw()
+        peterLabel.draw()
         moneyLabel.draw()
         market_savings.draw()
         draw()
